@@ -1,10 +1,11 @@
-import { motion } from "framer-motion";
-import { ButtonHTMLAttributes } from "react";
+import { motion, HTMLMotionProps } from "framer-motion";
 import { Loader2 } from "lucide-react";
+import { ReactNode } from "react";
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends HTMLMotionProps<"button"> {
     isLoading?: boolean;
     variant?: "primary" | "secondary" | "outline";
+    children: ReactNode;
 }
 
 export function Button({
