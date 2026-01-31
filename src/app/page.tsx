@@ -2,13 +2,134 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Wand2, Mail } from "lucide-react";
-import { FileUpload } from "@/components/ui/FileUpload";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Textarea } from "@/components/ui/Textarea";
-import { Card } from "@/components/ui/Card";
+import { 
+    FileText, 
+    Wand2, 
+    Mail, 
+    Edit, 
+    Eye, 
+    Upload, 
+    LayoutDashboard, 
+    History, 
+    Settings, 
+    LogOut,
+    Menu as MenuIcon,
+    Bell,
+    Search
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import jsPDF from "jspdf";
+
+// MUI Imports
+import { createTheme, ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import {
+    TextField,
+    Button,
+    Card,
+    CardContent,
+    Typography,
+    Box,
+    Grid,
+    IconButton,
+    Container,
+    CircularProgress,
+    Drawer,
+    List,
+    ListItem,
+    ListItemButton,
+    ListItemIcon,
+    ListItemText,
+    AppBar,
+    Toolbar,
+    Avatar,
+    Badge,
+    InputBase,
+    Divider
+} from "@mui/material";
+
+const DRAWER_WIDTH = 280;
+
+// Create a professional dark dashboard theme
+const dashboardTheme = createTheme({
+    palette: {
+        mode: 'dark',
+        primary: {
+            main: '#34d399', // Emerald
+        },
+        secondary: {
+            main: '#60a5fa', // Blue
+        },
+        background: {
+            paper: '#1e293b', // Slate-800
+            default: '#0f172a' // Slate-900
+        },
+        text: {
+            primary: '#f1f5f9',
+            secondary: '#94a3b8',
+        }
+    },
+    shape: {
+        borderRadius: 16
+    },
+    components: {
+        MuiButton: {
+            styleOverrides: {
+                root: {
+                    textTransform: 'none',
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    padding: '10px 20px',
+                }
+            }
+        },
+        MuiCard: {
+            styleOverrides: {
+                root: {
+                    backgroundImage: 'none',
+                    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                }
+            }
+        },
+        MuiDrawer: {
+            styleOverrides: {
+                paper: {
+                    backgroundColor: '#111827', // Gray-900
+                    borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+                    color: '#fff'
+                }
+            }
+        },
+        MuiAppBar: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.8)', // Glass header
+                    backdropFilter: 'blur(8px)',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                    boxShadow: 'none'
+                }
+            }
+        }
+    }
+});
+
+function cleanForPdf(text: string) {
+    return text
+        .replace(/\*\*/g, "")          // remove markdown bold
+        .replace(/\*/g, "")            // remove leftover asterisks
+        .replace(/•/g, "")             // remove weird bullets
+        .replace(/—/g, "-")            // ascii only
+        .replace(/–/g, "-")
+        .replace(/—/g, "-")
+        .replace(/–/g, "-")
+        .replace(/• --/g, "")          // remove dividers
+        .replace(/--/g, "")            // remove automatic "--"
+        .replace(/[^\x00-\x7F]/g, "")  // remove Unicode
+        .trim();
+}
 
 export default function Home() {
     const [jobDescription, setJobDescription] = useState("");
@@ -19,8 +140,12 @@ export default function Home() {
     const [isTailoring, setIsTailoring] = useState(false);
     const [isSending, setIsSending] = useState(false);
     const [isExtracting, setIsExtracting] = useState(false);
+    const [editMode, setEditMode] = useState(false);
 
-    const handleFileSelect = async (file: File) => {
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        const file = e.target.files[0];
+        
         setIsExtracting(true);
         try {
             const formData = new FormData();
@@ -71,41 +196,55 @@ export default function Home() {
     const handleSend = async () => {
         setIsSending(true);
         try {
-            // Generate PDF for Resume
             const doc = new jsPDF();
+            doc.setFont("times");
 
-            // Add resume content to PDF (basic text wrapping)
-            const splitText = doc.splitTextToSize(tailoredResume, 180);
-            let y = 10;
-            const lineHeight = 7;
-            const pageHeight = doc.internal.pageSize.height;
+            const resumeClean = cleanForPdf(tailoredResume);
+            const lines = resumeClean.split('\n');
+            let y = 20;
+            const margin = 20;
 
-            splitText.forEach((line: string) => {
-                if (y > pageHeight - 10) {
+            lines.forEach((line) => {
+                line = line.trim();
+                if (!line) return;
+
+                const isHeader = (
+                    line.length > 2 &&
+                    line === line.toUpperCase() &&
+                    /[A-Z]/.test(line) &&
+                    !line.startsWith("-") &&
+                    !line.includes("|") 
+                );
+
+                if (y > 280) {
                     doc.addPage();
-                    y = 10;
+                    y = 20;
                 }
-                doc.text(line, 10, y);
-                y += lineHeight;
+
+                if (isHeader) {
+                    doc.setFont("times", "bold");
+                    doc.setFontSize(12);
+                    doc.text(line, margin, y);
+                    doc.setLineWidth(0.5);
+                    doc.line(margin, y + 2, 190, y + 2);
+                    y += 8;
+                } else {
+                    doc.setFont("times", "normal");
+                    doc.setFontSize(11);
+                    const splitLines = doc.splitTextToSize(line, 170);
+                    doc.text(splitLines, margin, y);
+                    y += splitLines.length * 5; 
+                }
             });
 
             const pdfBase64 = doc.output("datauristring").split(",")[1];
 
-            // Generate PDF for Cover Letter
             const docCover = new jsPDF();
-            const splitCover = docCover.splitTextToSize(coverLetter, 180);
+            const coverClean = cleanForPdf(coverLetter);
+            const splitCover = docCover.splitTextToSize(coverClean, 180);
             let yCover = 10;
-
-            splitCover.forEach((line: string) => {
-                if (yCover > pageHeight - 10) {
-                    docCover.addPage();
-                    yCover = 10;
-                }
-                docCover.text(line, 10, yCover);
-                yCover += lineHeight;
-            });
+            docCover.text(splitCover, 10, yCover);
             const coverLetterPdfBase64 = docCover.output("datauristring").split(",")[1];
-
 
             const response = await fetch("/api/send", {
                 method: "POST",
@@ -135,136 +274,242 @@ export default function Home() {
     };
 
     return (
-        <main className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white p-8">
-            <div className="max-w-6xl mx-auto space-y-12">
-                {/* Hero Section */}
-                <motion.section
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8 }}
-                    className="text-center space-y-4 pt-12"
+        <ThemeProvider theme={dashboardTheme}>
+            <Box sx={{ display: 'flex', minHeight: '100vh', background: 'linear-gradient(to bottom right, #0f172a, #1e1b4b, #312e81)' }}>
+                <CssBaseline />
+                
+                {/* 1. TOP APP BAR */}
+                <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+                    <Toolbar sx={{ justifyContent: 'space-between' }}>
+                        <div className="flex items-center gap-3">
+                            <div className="bg-gradient-to-r from-emerald-400 to-blue-500 p-2 rounded-lg">
+                                <FileText className="text-white w-6 h-6" />
+                            </div>
+                            <Typography variant="h6" noWrap component="div" fontWeight="700" sx={{ letterSpacing: 0.5 }}>
+                                Resume<span className="text-emerald-400">AI</span>
+                            </Typography>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                           <Box sx={{ position: 'relative', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.05)', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }, mr: 2, display: { xs: 'none', sm: 'block' } }}>
+                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <Search size={18} className="text-gray-400" />
+                                </div>
+                                <InputBase
+                                    placeholder="Search..."
+                                    sx={{ color: 'inherit', width: '200px', '& .MuiInputBase-input': { p: 1, pl: 5 } }}
+                                />
+                           </Box>
+                           <IconButton color="inherit">
+                               <Badge badgeContent={4} color="secondary">
+                                   <Bell size={20} />
+                               </Badge>
+                           </IconButton>
+                           <Avatar sx={{ bgcolor: 'secondary.main' }}>KC</Avatar>
+                        </div>
+                    </Toolbar>
+                </AppBar>
+
+                {/* 2. SIDEBAR NAVIGATION */}
+                <Drawer
+                    variant="permanent"
+                    sx={{
+                        width: DRAWER_WIDTH,
+                        flexShrink: 0,
+                        [`& .MuiDrawer-paper`]: { width: DRAWER_WIDTH, boxSizing: 'border-box' },
+                    }}
                 >
-                    <h1 className="text-5xl md:text-7xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
-                        Resume Automation
-                    </h1>
-                    <p className="text-xl text-gray-300 max-w-2xl mx-auto">
-                        Tailor your resume instantly with AI and send it to recruiters in seconds.
-                    </p>
-                </motion.section>
+                    <Toolbar /> {/* Spacer for AppBar */}
+                    <Box sx={{ overflow: 'auto', mt: 2 }}>
+                        <List>
+                            <ListItem disablePadding>
+                                <ListItemButton selected>
+                                    <ListItemIcon><LayoutDashboard className="text-emerald-400"/></ListItemIcon>
+                                    <ListItemText primary="Builder" primaryTypographyProps={{ fontWeight: 600 }} />
+                                </ListItemButton>
+                            </ListItem>
+                            <ListItem disablePadding>
+                                <ListItemButton>
+                                    <ListItemIcon><History className="text-slate-400"/></ListItemIcon>
+                                    <ListItemText primary="History" className="text-slate-400" />
+                                </ListItemButton>
+                            </ListItem>
+                            <ListItem disablePadding>
+                                <ListItemButton>
+                                    <ListItemIcon><FileText className="text-slate-400"/></ListItemIcon>
+                                    <ListItemText primary="Templates" className="text-slate-400" />
+                                </ListItemButton>
+                            </ListItem>
+                        </List>
+                        <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.05)' }} />
+                        <List>
+                            <ListItem disablePadding>
+                                <ListItemButton>
+                                    <ListItemIcon><Settings className="text-slate-400"/></ListItemIcon>
+                                    <ListItemText primary="Settings" className="text-slate-400" />
+                                </ListItemButton>
+                            </ListItem>
+                            <ListItem disablePadding>
+                                <ListItemButton>
+                                    <ListItemIcon><LogOut className="text-slate-400"/></ListItemIcon>
+                                    <ListItemText primary="Logout" className="text-slate-400" />
+                                </ListItemButton>
+                            </ListItem>
+                        </List>
+                    </Box>
+                </Drawer>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Left Column: Inputs */}
-                    <div className="space-y-6">
-                        <Card
-                            delay={0.2}
-                            title="Inputs"
-                            icon={<FileText className="text-blue-400" />}
-                            className="space-y-4"
-                        >
-                            <div className="space-y-4">
-                                <FileUpload
-                                    onFileSelect={handleFileSelect}
-                                    isLoading={isExtracting}
-                                />
-                                <div className="relative">
-                                    <div className="absolute inset-0 flex items-center">
-                                        <div className="w-full border-t border-white/10"></div>
+                {/* 3. MAIN DASHBOARD CONTENT */}
+                <Box component="main" sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` } }}>
+                    <Toolbar /> {/* Spacer for AppBar */}
+                    
+                    <Typography variant="h4" gutterBottom fontWeight="700" sx={{ mb: 4 }} className="text-white">
+                        Create New Resume
+                    </Typography>
+
+                    <Grid container spacing={4} alignItems="stretch">
+                        
+                        {/* LEFT PANEL: INPUTS */}
+                        <Grid item xs={12} xl={5}>
+                            <Card sx={{ height: '100%' }}>
+                                <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 3, height: '100%' }}>
+                                    <div className="flex items-center gap-3 pb-2 border-b border-gray-700">
+                                        <Wand2 className="text-emerald-400 w-5 h-5" />
+                                        <Typography variant="h6" fontWeight="600">Details & Context</Typography>
                                     </div>
-                                    <div className="relative flex justify-center text-xs uppercase">
-                                        <span className="bg-[#1f2937] px-2 text-gray-500">Or paste text</span>
-                                    </div>
-                                </div>
-                                <Textarea
-                                    label="Job Description"
-                                    placeholder="Paste the job description here..."
-                                    value={jobDescription}
-                                    onChange={(e) => setJobDescription(e.target.value)}
-                                    className="h-40"
-                                />
 
-                                <Textarea
-                                    label="Your Base Resume"
-                                    placeholder="Paste your base resume content in Markdown or Plain Text..."
-                                    value={baseResume}
-                                    onChange={(e) => setBaseResume(e.target.value)}
-                                    className="h-60 font-mono text-sm"
-                                />
-
-                                <Input
-                                    label="Recruiter's Email"
-                                    placeholder="recruiter@company.com"
-                                    type="email"
-                                    value={targetEmail}
-                                    onChange={(e) => setTargetEmail(e.target.value)}
-                                />
-                            </div>
-                        </Card>
-
-                        <Button
-                            className="w-full"
-                            onClick={handleTailor}
-                            disabled={isTailoring || !jobDescription || !baseResume}
-                            isLoading={isTailoring}
-                            variant="primary"
-                        >
-                            <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                            Tailor Resume with AI
-                        </Button>
-                    </div>
-
-                    {/* Right Column: Preview & Action */}
-                    <div className="space-y-6 h-full flex flex-col">
-                        <motion.div
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.4 }}
-                            className="flex-1 flex flex-col"
-                        >
-                            <div className="bg-white/10 backdrop-blur-lg p-6 rounded-2xl border border-white/20 shadow-xl flex-1 flex flex-col min-h-[600px] space-y-4">
-                                <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
-                                    <FileText className="text-emerald-400" />
-                                    Tailored Output
-                                </h2>
-
-                                <div className="flex-1 flex flex-col space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Resume Content</label>
-                                    <Textarea
-                                        placeholder="Your tailored resume will appear here..."
-                                        value={tailoredResume}
-                                        onChange={(e) => setTailoredResume(e.target.value)}
-                                        className="flex-1 bg-white text-gray-900 shadow-inner font-mono text-sm rounded-xl border-none focus:ring-emerald-500/50 min-h-[400px]"
-                                        style={{ backgroundColor: "white", color: "black" }}
-                                    />
-                                </div>
-
-                                <div className="flex-col space-y-2">
-                                    <label className="text-sm font-medium text-gray-300">Email Summary (Cover Letter)</label>
-                                    <Textarea
-                                        placeholder="Email summary will appear here..."
-                                        value={coverLetter}
-                                        onChange={(e) => setCoverLetter(e.target.value)}
-                                        className="h-40 bg-white text-gray-900 shadow-inner font-sans text-sm rounded-xl border-none focus:ring-emerald-500/50"
-                                        style={{ backgroundColor: "white", color: "black" }}
-                                    />
-                                </div>
-
-                                <div className="mt-6 pt-6 border-t border-white/10">
                                     <Button
-                                        className="w-full"
-                                        variant="secondary"
-                                        onClick={handleSend}
-                                        disabled={isSending || !tailoredResume || !targetEmail}
-                                        isLoading={isSending}
+                                        component="label"
+                                        variant="outlined"
+                                        fullWidth
+                                        startIcon={isExtracting ? <CircularProgress size={20} /> : <Upload />}
+                                        disabled={isExtracting}
+                                        sx={{ height: 64, borderStyle: 'dashed', borderWidth: 2, borderColor: 'text.secondary' }}
                                     >
-                                        <Mail className="w-5 h-5" />
-                                        Send Application with PDF
+                                        {isExtracting ? "Parsing PDF..." : "Upload Base Resume (PDF)"}
+                                        <input type="file" hidden accept=".pdf" onChange={handleFileSelect} />
                                     </Button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                </div>
-            </div>
-        </main>
+
+                                    <TextField
+                                        label="Job Description"
+                                        placeholder="Paste the job description here..."
+                                        multiline
+                                        minRows={4}
+                                        fullWidth
+                                        variant="filled"
+                                        value={jobDescription}
+                                        onChange={(e) => setJobDescription(e.target.value)}
+                                        sx={{ '& .MuiFilledInput-root': { bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2 } }}
+                                    />
+
+                                    <TextField
+                                        label="Base Resume Content"
+                                        placeholder="Extracted resume text..."
+                                        multiline
+                                        minRows={6}
+                                        fullWidth
+                                        variant="filled"
+                                        value={baseResume}
+                                        onChange={(e) => setBaseResume(e.target.value)}
+                                        sx={{ '& .MuiFilledInput-root': { bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, fontFamily: 'monospace', fontSize: '13px' } }}
+                                    />
+                                    
+                                    <div className="mt-auto pt-4">
+                                        <Button
+                                            variant="contained"
+                                            fullWidth
+                                            size="large"
+                                            onClick={handleTailor}
+                                            disabled={isTailoring || !jobDescription || !baseResume}
+                                            startIcon={isTailoring ? <CircularProgress size={20} color="inherit" /> : <Wand2 />}
+                                            sx={{ 
+                                                bgcolor: 'primary.main', 
+                                                color: '#000',
+                                                '&:hover': { bgcolor: 'primary.dark' },
+                                                height: 56
+                                            }}
+                                        >
+                                            {isTailoring ? "Generating Tailored Resume..." : "Generate Tailored Resume"}
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+
+                        {/* RIGHT PANEL: PREVIEW & EXPORT */}
+                        <Grid item xs={12} xl={7}>
+                             <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                <CardContent sx={{ p: 4, flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                    <div className="flex justify-between items-center pb-2 border-b border-gray-700">
+                                        <div className="flex items-center gap-3">
+                                            <FileText className="text-blue-400 w-5 h-5" />
+                                            <Typography variant="h6" fontWeight="600">Tailored Preview</Typography>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button 
+                                                size="small" 
+                                                startIcon={editMode ? <Eye size={16}/> : <Edit size={16}/>}
+                                                onClick={() => setEditMode(!editMode)}
+                                                sx={{ color: 'text.secondary' }}
+                                            >
+                                                {editMode ? "Preview Mode" : "Edit Mode"}
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    <Box sx={{ flex: 1, minHeight: 500, bgcolor: 'rgba(0,0,0,0.3)', borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        {editMode ? (
+                                            <TextField
+                                                multiline
+                                                fullWidth
+                                                value={tailoredResume}
+                                                onChange={(e) => setTailoredResume(e.target.value)}
+                                                sx={{ 
+                                                    height: '100%',
+                                                    '& .MuiInputBase-root': { height: '100%', alignItems: 'flex-start', p: 3, fontFamily: 'monospace' } 
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="h-full overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-700">
+                                                <pre className="whitespace-pre-wrap font-serif text-sm leading-7 text-gray-200">
+                                                    {tailoredResume || "Your tailored resume will generated here..."}
+                                                </pre>
+                                            </div>
+                                        )}
+                                    </Box>
+
+                                    <Grid container spacing={2}>
+                                        <Grid item xs={12} md={8}>
+                                            <TextField
+                                                label="Recruiter Email"
+                                                size="small"
+                                                fullWidth
+                                                value={targetEmail}
+                                                onChange={(e) => setTargetEmail(e.target.value)}
+                                                placeholder="hiring@company.com"
+                                                InputProps={{ startAdornment: <Mail size={16} className="mr-2 text-gray-400"/> }}
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12} md={4}>
+                                            <Button
+                                                variant="contained"
+                                                color="secondary"
+                                                fullWidth
+                                                onClick={handleSend}
+                                                disabled={isSending || !tailoredResume || !targetEmail}
+                                                startIcon={isSending ? <CircularProgress size={16} color="inherit" /> : <Mail />}
+                                                sx={{ height: '100%' }}
+                                            >
+                                                Send PDF
+                                            </Button>
+                                        </Grid>
+                                    </Grid>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    </Grid>
+                </Box>
+            </Box>
+        </ThemeProvider>
     );
 }
