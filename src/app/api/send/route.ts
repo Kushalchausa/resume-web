@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { updateEntryStatus } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
+    let entryId: string | undefined;
+
     try {
-        const { targetEmail, subject, emailBody, pdfBase64, filename, coverLetterPdfBase64, coverLetterFilename } = await req.json();
+        const body = await req.json();
+        const { targetEmail, subject, emailBody, pdfBase64, filename, coverLetterPdfBase64, coverLetterFilename } = body;
+        entryId = body.entryId;
 
         if (!targetEmail || !pdfBase64) {
             return NextResponse.json(
@@ -42,6 +47,7 @@ export async function POST(req: NextRequest) {
                 transporter = await createAndVerify(587, false);
             } catch (err2) {
                 console.error("Attempt 2 failed:", err2);
+                if (entryId) updateEntryStatus(entryId, 'Failed');
                 return NextResponse.json(
                     { error: `SMTP Connection Failed (Tried ports 465 & 587). Error: ${(err2 as Error).message}` },
                     { status: 500 }
@@ -76,8 +82,13 @@ export async function POST(req: NextRequest) {
         const info = await transporter.sendMail(mailOptions);
         console.log("Message sent: %s", info.messageId);
 
+        if (entryId) {
+            updateEntryStatus(entryId, 'Sent');
+        }
+
         return NextResponse.json({ success: true, messageId: info.messageId });
     } catch (error) {
+        if (entryId) updateEntryStatus(entryId, 'Failed');
         console.error("Error sending email:", error);
         return NextResponse.json(
             { error: `Failed to send email: ${(error as Error).message}` },

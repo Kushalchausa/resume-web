@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { addEntry } from "@/lib/db";
 
 /**
  * Remove possible markdown fences that the LLM might add.
@@ -41,6 +42,18 @@ async function retry<T>(fn: () => Promise<T>, attempts = 3, delayMs = 500): Prom
         }
     }
     throw lastError;
+}
+
+/**
+ * Helper to try and hint the company/role from JD text (Very Naive)
+ */
+function extractMetaFromJD(jd: string) {
+    // Naive heuristic: First line often contains title/company
+    const firstLine = jd.split('\n')[0].substring(0, 50);
+    return {
+        jobTitle: firstLine || 'Software Engineer',
+        company: 'Unknown Company' // hard to extract reliably without LLM, keeping simple
+    };
 }
 
 export async function POST(req: NextRequest) {
@@ -155,9 +168,19 @@ ESCAPE:
             );
         }
 
+        // --- SAVE TO HISTORY DB ---
+        const meta = extractMetaFromJD(jobDescription);
+        const entry = addEntry({
+            jobTitle: meta.jobTitle,
+            company: meta.company,
+            status: 'Draft',
+            resumePreview: parsed.resume.substring(0, 200) + '...'
+        });
+
         return NextResponse.json({
             tailoredResume: parsed.resume,
             coverLetter: parsed.coverLetter,
+            entryId: entry.id // Return ID so frontend can update to 'Sent' later
         });
 
     } catch (err: any) {
