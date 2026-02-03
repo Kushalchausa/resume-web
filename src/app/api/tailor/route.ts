@@ -2,6 +2,8 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { addEntry } from "@/lib/db";
+import { Status } from "@prisma/client";
 
 /**
  * Remove possible markdown fences that the LLM might add.
@@ -43,6 +45,18 @@ async function retry<T>(fn: () => Promise<T>, attempts = 3, delayMs = 500): Prom
     throw lastError;
 }
 
+/**
+ * Helper to try and hint the company/role from JD text (Very Naive)
+ */
+function extractMetaFromJD(jd: string) {
+    // Naive heuristic: First line often contains title/company
+    const firstLine = jd.split('\n')[0].substring(0, 50);
+    return {
+        jobTitle: firstLine || 'Software Engineer',
+        company: 'Unknown Company' // hard to extract reliably without LLM, keeping simple
+    };
+}
+
 export async function POST(req: NextRequest) {
     try {
         const { baseResume, jobDescription } = await req.json();
@@ -72,8 +86,7 @@ export async function POST(req: NextRequest) {
         });
 
         const prompt = `
-You are an expert resume writer and career coach.
-Tailor a resume and write a short email cover‑letter summary based on the following job description.
+You are an expert resume writer.
 
 JOB DESCRIPTION:
 ${jobDescription}
@@ -81,16 +94,44 @@ ${jobDescription}
 BASE RESUME:
 ${baseResume}
 
-INSTRUCTIONS:
-1. Produce a markdown‑formatted resume that highlights the most relevant experience, skills and achievements for the role.
-2. Write a concise, professional email body (cover‑letter) addressed to the hiring manager, referencing the attached resume.
+TASK:
+Generate a clean, ATS-friendly resume in PLAIN TEXT ONLY — no markdown symbols, no bullets like "• --", no asterisks, no decorative characters.
 
-RETURN ONLY VALID JSON (no markdown fences) with this shape:
+STRICT RULES:
+- Do NOT generate any divider lines such as "• --" or "---".
+- Do NOT use asterisks (*) anywhere.
+- Do NOT use markdown bold (**text**).
+- Do NOT wrap section titles in markdown (#, ##, ###).
+- Do NOT prefix headings like "2026*" with an asterisk.
+- Use ONLY hyphens "-" for bullet points.
+- Job title, project title, and college name MUST NOT have any bullets or symbols before or after.
+- Output clean plain text with proper line spacing, like this:
+
+PROFESSIONAL EXPERIENCE
+Junior Software Engineer, LLUMO AI
+June 2025 – Present
+- Bullet point
+- Bullet point
+
+PROJECTS
+Resume Web (2026)
+- Bullet point
+
+EDUCATION
+Pranveer Singh Institute of Technology
+Master of Computer Applications (CGPA: 8.2)
+2025 | Kanpur, India
+
+OUTPUT FORMAT:
 {
-  "resume": "<markdown string>",
-  "coverLetter": "<plain‑text email body>"
+  "resume": "<clean plain text resume>",
+  "coverLetter": "<plain text>"
 }
-IMPORTANT: The 'resume' field must be a valid JSON string. Escape all newlines (\\n) and quotes (\\") properly.
+
+ESCAPE:
+- Escape all newlines with \\n
+- Escape all quotes
+- No markdown, no code fences, no extra formatting.
 `.trim();
 
         // Call Gemini (wrapped in retry for transient network errors)
@@ -128,9 +169,22 @@ IMPORTANT: The 'resume' field must be a valid JSON string. Escape all newlines (
             );
         }
 
+        // --- SAVE TO HISTORY DB ---
+        const meta = extractMetaFromJD(jobDescription);
+        const entry = await addEntry({
+            jobTitle: meta.jobTitle,
+            company: meta.company,
+            status: Status.PENDING,
+            resumePreview: parsed.resume.substring(0, 200) + '...',
+            fullResume: parsed.resume,
+            coverLetter: parsed.coverLetter,
+            jobDescription: jobDescription
+        });
+
         return NextResponse.json({
             tailoredResume: parsed.resume,
             coverLetter: parsed.coverLetter,
+            entryId: entry.id // Return ID so frontend can update to 'Sent' later
         });
 
     } catch (err: any) {
