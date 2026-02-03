@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getHistory, HistoryEntry } from '@/lib/db';
+import { Status } from "@prisma/client";
 
 export async function GET() {
     try {
-        const history = getHistory();
+        const history = await getHistory();
         
         // 1. Calculate KPI Stats
         const totalGenerated = history.length;
-        const totalSent = history.filter(h => h.status === 'Sent').length;
+        const totalSent = history.filter(h => h.status === Status.SUCCESS).length;
         
         // Calculate Streak (Simplified: consecutive days with at least one entry)
         let streak = 0;
@@ -41,7 +42,7 @@ export async function GET() {
                 if (chartDataMap.has(dayName)) {
                     const val = chartDataMap.get(dayName)!;
                     val.resumes += 1;
-                    if (entry.status === 'Sent') val.applications += 1;
+                    if (entry.status === Status.SUCCESS) val.applications += 1;
                 }
             }
         });

@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  History   History[]
+}
+
+
+// Define the Enum for Status
+enum Status {
+  PENDING
+  SUCCESS
+  FAILURE
+}
+
+model History {
+  id             String   @id @default(uuid())
+  userId         String? // Optional for now if we allow guest users
+  user           User?    @relation(fields: [userId], references: [id])
+  
+  jobTitle       String
+  company        String
+  jobDescription String?  @db.Text
+  
+  status         Status   @default(PENDING)
+  
+  tailoredResume String?  @db.Text
+  coverLetter    String?  @db.Text
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

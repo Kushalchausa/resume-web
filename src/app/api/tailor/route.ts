@@ -3,6 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { addEntry } from "@/lib/db";
+import { Status } from "@prisma/client";
 
 /**
  * Remove possible markdown fences that the LLM might add.
@@ -170,11 +171,14 @@ ESCAPE:
 
         // --- SAVE TO HISTORY DB ---
         const meta = extractMetaFromJD(jobDescription);
-        const entry = addEntry({
+        const entry = await addEntry({
             jobTitle: meta.jobTitle,
             company: meta.company,
-            status: 'Draft',
-            resumePreview: parsed.resume.substring(0, 200) + '...'
+            status: Status.PENDING,
+            resumePreview: parsed.resume.substring(0, 200) + '...',
+            fullResume: parsed.resume,
+            coverLetter: parsed.coverLetter,
+            jobDescription: jobDescription
         });
 
         return NextResponse.json({

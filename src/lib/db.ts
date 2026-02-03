@@ -1,62 +1,58 @@
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
-
-const DB_PATH = path.join(process.cwd(), 'data', 'history.json');
+import prisma from "@/lib/prisma";
+import { Status } from "@prisma/client";
 
 export interface HistoryEntry {
     id: string;
-    jobTitle: string;
-    company: string; // Extracted or inferred
-    date: string; // ISO string
-    status: 'Draft' | 'Sent' | 'Failed';
-    resumePreview?: string; // Short snippet or path
+    jobTitle?: string;
+    company?: string;
+    date: string;
+    status: string;
+    resumePreview?: string;
 }
 
-function ensureDB() {
-    if (!fs.existsSync(DB_PATH)) {
-        // Ensure directory exists
-        const dir = path.dirname(DB_PATH);
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
+export async function getHistory(): Promise<HistoryEntry[]> {
+    const entries = await prisma.history.findMany({
+        orderBy: { createdAt: 'desc' }
+    });
+
+    return entries.map((e: any) => ({
+        id: e.id,
+        jobTitle: e.jobTitle,
+        company: e.company,
+        date: e.createdAt.toISOString(),
+        status: e.status, // Now returns "PENDING", "SUCCESS", etc.
+        resumePreview: e.tailoredResume ? e.tailoredResume.substring(0, 200) + '...' : ''
+    }));
+}
+
+export async function addEntry(entry: { 
+    jobTitle: string; 
+    company: string; 
+    status: Status; 
+    resumePreview?: string; 
+    fullResume?: string; 
+    coverLetter?: string;
+    jobDescription?: string;
+}) {
+    return await prisma.history.create({
+        data: {
+            jobTitle: entry.jobTitle,
+            company: entry.company,
+            status: entry.status,
+            tailoredResume: entry.fullResume || entry.resumePreview,
+            coverLetter: entry.coverLetter,
+            jobDescription: entry.jobDescription
         }
-        fs.writeFileSync(DB_PATH, JSON.stringify([], null, 2));
-    }
+    });
 }
 
-export function getHistory(): HistoryEntry[] {
-    ensureDB();
+export async function updateEntryStatus(id: string, status: Status) {
     try {
-        const fileContent = fs.readFileSync(DB_PATH, 'utf-8');
-        return JSON.parse(fileContent) as HistoryEntry[];
+        await prisma.history.update({
+            where: { id },
+            data: { status }
+        });
     } catch (error) {
-        console.error("Failed to read DB:", error);
-        return [];
+        console.error(`Failed to update status for ${id}:`, error);
     }
-}
-
-export function addEntry(entry: Omit<HistoryEntry, 'id' | 'date'>): HistoryEntry {
-    const history = getHistory();
-    const newEntry: HistoryEntry = {
-        id: crypto.randomUUID(),
-        date: new Date().toISOString(),
-        ...entry
-    };
-    
-    // Add to beginning
-    history.unshift(newEntry);
-    
-    fs.writeFileSync(DB_PATH, JSON.stringify(history, null, 2));
-    return newEntry;
-}
-
-export function updateEntryStatus(id: string, status: HistoryEntry['status']) {
-    const history = getHistory();
-    const index = history.findIndex(h => h.id === id);
-    if (index !== -1) {
-        history[index].status = status;
-        fs.writeFileSync(DB_PATH, JSON.stringify(history, null, 2));
-        return history[index];
-    }
-    return null;
 }

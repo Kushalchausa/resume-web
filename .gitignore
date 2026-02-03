@@ -41,3 +41,5 @@ check-models-file.js
 models_output.json
 output.txt
 version.txt
+
+.env
