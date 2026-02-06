@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
             generationConfig: { responseMimeType: "application/json" }
         });
 
+
         const prompt = `
 You are an expert resume writer.
 
@@ -95,7 +96,9 @@ BASE RESUME:
 ${baseResume}
 
 TASK:
-Generate a clean, ATS-friendly resume in PLAIN TEXT ONLY — no markdown symbols, no bullets like "• --", no asterisks, no decorative characters.
+1. Analyze the Job Description to extract the **Company Name** and **Job Title**.
+2. Generate a clean, ATS-friendly resume in PLAIN TEXT ONLY.
+3. Generate a Cover Letter.
 
 STRICT RULES:
 - Do NOT generate any divider lines such as "• --" or "---".
@@ -105,25 +108,12 @@ STRICT RULES:
 - Do NOT prefix headings like "2026*" with an asterisk.
 - Use ONLY hyphens "-" for bullet points.
 - Job title, project title, and college name MUST NOT have any bullets or symbols before or after.
-- Output clean plain text with proper line spacing, like this:
+- Output clean plain text with proper line spacing.
 
-PROFESSIONAL EXPERIENCE
-Junior Software Engineer, LLUMO AI
-June 2025 – Present
-- Bullet point
-- Bullet point
-
-PROJECTS
-Resume Web (2026)
-- Bullet point
-
-EDUCATION
-Pranveer Singh Institute of Technology
-Master of Computer Applications (CGPA: 8.2)
-2025 | Kanpur, India
-
-OUTPUT FORMAT:
+OUTPUT FORMAT (JSON Only):
 {
+  "company": "<extracted company name from JD, or 'Unknown Company'>",
+  "jobTitle": "<extracted job title from JD, or 'Software Engineer'>",
   "resume": "<clean plain text resume>",
   "coverLetter": "<plain text>"
 }
@@ -170,10 +160,13 @@ ESCAPE:
         }
 
         // --- SAVE TO HISTORY DB ---
-        const meta = extractMetaFromJD(jobDescription);
+        // Use extracted metadata from LLM or fallbacks
+        const companyName = parsed.company || "Unknown Company";
+        const jobTitle = parsed.jobTitle || "Software Engineer";
+
         const entry = await addEntry({
-            jobTitle: meta.jobTitle,
-            company: meta.company,
+            jobTitle: jobTitle,
+            company: companyName,
             status: Status.PENDING,
             resumePreview: parsed.resume.substring(0, 200) + '...',
             fullResume: parsed.resume,
