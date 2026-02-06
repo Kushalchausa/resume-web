@@ -234,7 +234,25 @@ export default function Dashboard() {
     const [historyStats, setHistoryStats] = useState({ totalGenerated: 0, totalSent: 0, streak: 0 });
     const [chartData, setChartData] = useState<any[]>([]);
     const [historyList, setHistoryList] = useState<any[]>([]);
+
     const [loadingHistory, setLoadingHistory] = useState(false);
+
+    // Email extraction helper
+    const extractEmailFromText = (text: string) => {
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+        const match = text.match(emailRegex);
+        return match ? match[0] : "";
+    };
+
+    const handleJobDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newText = e.target.value;
+        setJobDescription(newText);
+        
+        const extracted = extractEmailFromText(newText);
+        if (extracted) {
+             setTargetEmail(extracted);
+        }
+    };
 
     // ... (Keep existing fetch logic)
     const fetchHistory = async () => {
@@ -343,7 +361,7 @@ export default function Dashboard() {
                     subject: "Job Application",
                     emailBody: coverLetter,
                     pdfBase64,
-                    filename: "Tailored_Resume.pdf",
+                    filename: "Kushal_Resume.pdf",
                     coverLetterPdfBase64: coverBase64,
                     coverLetterFilename: "Cover_Letter.pdf",
                     entryId: currentEntryId
@@ -568,7 +586,7 @@ export default function Dashboard() {
                                                     fullWidth
                                                     variant="filled"
                                                     value={jobDescription}
-                                                    onChange={(e) => setJobDescription(e.target.value)}
+                                                    onChange={handleJobDescriptionChange}
                                                 />
 
                                                 <TextField
