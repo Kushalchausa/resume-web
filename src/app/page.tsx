@@ -1,729 +1,581 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import React from 'react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { 
-    FileText, 
     Wand2, 
-    Mail, 
-    Edit, 
-    Eye, 
-    Upload, 
-    LayoutDashboard, 
-    History, 
-    Settings, 
-    LogOut,
-    Menu as MenuIcon,
-    Bell,
-    Search,
-    TrendingUp,
-    Calendar,
-    CheckCircle2
-} from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import jsPDF from "jspdf";
-import {
-    AreaChart,
-    Area,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    BarChart,
-    Bar
-} from "recharts";
-
-// MUI Imports
-import { createTheme, ThemeProvider } from "@mui/material/styles";
+    FileText, 
+    Zap, 
+    CheckCircle2, 
+    ArrowRight, 
+    Layout, 
+    ShieldCheck, 
+    Bot,
+    Menu,
+    X
+} from 'lucide-react';
+import { 
+    createTheme, 
+    ThemeProvider, 
+    responsiveFontSizes 
+} from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
-    TextField,
-    Button,
-    Card,
-    CardContent,
+    AppBar,
+    Toolbar,
     Typography,
+    Button,
+    Container,
     Box,
     Grid,
+    Paper,
     IconButton,
-    InputBase,
-    Container,
-    CircularProgress,
     Drawer,
     List,
     ListItem,
     ListItemButton,
-    ListItemIcon,
     ListItemText,
-    AppBar,
-    Toolbar,
-    Avatar,
-    Badge,
-    Divider,
-    Paper,
+    Stack,
     Chip
 } from "@mui/material";
 
-const DRAWER_WIDTH = 280;
-
-// Mock Data for History (GitHub-like Dashboard)
-const activityData = [
-  { name: 'Mon', resumes: 2, applications: 1 },
-  { name: 'Tue', resumes: 5, applications: 3 },
-  { name: 'Wed', resumes: 3, applications: 2 },
-  { name: 'Thu', resumes: 8, applications: 6 },
-  { name: 'Fri', resumes: 12, applications: 10 },
-  { name: 'Sat', resumes: 4, applications: 3 },
-  { name: 'Sun', resumes: 6, applications: 5 },
-];
-
-const recentHistory = [
-    { id: 1, title: 'Software Engineer @ Google', date: '2 hours ago', status: 'Sent', company: 'Google' },
-    { id: 2, title: 'Frontend Developer @ Netflix', date: '5 hours ago', status: 'Draft', company: 'Netflix' },
-    { id: 3, title: 'Full Stack Engineer @ Amazon', date: '1 day ago', status: 'Sent', company: 'Amazon' },
-    { id: 4, title: 'React Developer @ Meta', date: '2 days ago', status: 'Sent', company: 'Meta' },
-    { id: 5, title: 'Product Engineer @ Spotify', date: '3 days ago', status: 'Archived', company: 'Spotify' },
-];
-
-// Create a professional dark dashboard theme
-const dashboardTheme = createTheme({
+// --- Theme Configuration ---
+let landingTheme = createTheme({
     palette: {
         mode: 'dark',
         primary: {
-            main: '#34d399', // Emerald
+            main: '#34d399', // Emerald 400
+            light: '#6ee7b7',
+            dark: '#10b981',
+            contrastText: '#0f172a',
         },
         secondary: {
-            main: '#60a5fa', // Blue
+            main: '#60a5fa', // Blue 400
+            light: '#93c5fd',
+            dark: '#3b82f6',
         },
         background: {
-            paper: '#1e293b', // Slate-800
-            default: '#0f172a' // Slate-900
+            default: '#0f172a', // Slate 900
+            paper: '#1e293b',   // Slate 800
         },
         text: {
-            primary: '#f1f5f9',
-            secondary: '#94a3b8',
+            primary: '#f8fafc', // Slate 50
+            secondary: '#94a3b8', // Slate 400
         }
     },
+    typography: {
+        fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+        h1: { fontWeight: 800, letterSpacing: '-0.025em' },
+        h2: { fontWeight: 700, letterSpacing: '-0.025em' },
+        h3: { fontWeight: 700 },
+        button: { textTransform: 'none', fontWeight: 600 },
+    },
     shape: {
-        borderRadius: 12
+        borderRadius: 16
     },
     components: {
         MuiButton: {
             styleOverrides: {
                 root: {
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    padding: '8px 16px',
+                    borderRadius: '12px',
+                    padding: '10px 24px',
+                    fontSize: '1rem',
+                },
+                containedPrimary: {
+                    boxShadow: '0 4px 14px 0 rgba(52, 211, 153, 0.39)',
+                    '&:hover': {
+                        boxShadow: '0 6px 20px rgba(52, 211, 153, 0.23)',
+                    },
                 }
             }
         },
-        MuiCard: {
+        MuiPaper: {
             styleOverrides: {
                 root: {
                     backgroundImage: 'none',
-                    backgroundColor: 'rgba(30, 41, 59, 0.7)',
-                    backdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                }
-            }
-        },
-        MuiDrawer: {
-            styleOverrides: {
-                paper: {
-                    backgroundColor: '#111827',
-                    borderRight: '1px solid rgba(255, 255, 255, 0.08)',
-                }
-            }
-        },
-        MuiAppBar: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-                    backdropFilter: 'blur(8px)',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                    boxShadow: 'none'
                 }
             }
         }
     }
 });
 
-function cleanForPdf(text: string) {
-    return text
-        .replace(/\*\*/g, "")
-        .replace(/\*/g, "")
-        .replace(/•/g, "")
-        .replace(/—/g, "-")
-        .replace(/–/g, "-")
-        .replace(/—/g, "-")
-        .replace(/–/g, "-")
-        .replace(/• --/g, "")
-        .replace(/--/g, "")
-        .replace(/[^\x00-\x7F]/g, "")
-        .trim();
-}
+landingTheme = responsiveFontSizes(landingTheme);
 
-export default function Home() {
-    const [currentView, setCurrentView] = useState<'builder' | 'history'>('builder');
-    
-    // Builder State
-    const [jobDescription, setJobDescription] = useState("");
-    const [baseResume, setBaseResume] = useState("");
-    const [targetEmail, setTargetEmail] = useState("");
-    const [tailoredResume, setTailoredResume] = useState("");
-    const [coverLetter, setCoverLetter] = useState("");
-    const [currentEntryId, setCurrentEntryId] = useState<string | null>(null);
+// --- Components ---
 
-    const [isTailoring, setIsTailoring] = useState(false);
-    const [isSending, setIsSending] = useState(false);
-    const [isExtracting, setIsExtracting] = useState(false);
-    const [editMode, setEditMode] = useState(false);
-
-    // History State
-    const [historyStats, setHistoryStats] = useState({ totalGenerated: 0, totalSent: 0, streak: 0 });
-    const [chartData, setChartData] = useState<any[]>([]);
-    const [historyList, setHistoryList] = useState<any[]>([]);
-    const [loadingHistory, setLoadingHistory] = useState(false);
-
-    // Fetch History Data
-    const fetchHistory = async () => {
-        setLoadingHistory(true);
-        try {
-            const res = await fetch('/api/history');
-            const data = await res.json();
-            if (data.stats) {
-                setHistoryStats(data.stats);
-                setChartData(data.activityData);
-                setHistoryList(data.recentHistory);
-            }
-        } catch (error) {
-            console.error("Failed to fetch history:", error);
-        } finally {
-            setLoadingHistory(false);
-        }
-    };
-
-    // Load history when switching to history view
-    useState(() => {
-        if (currentView === 'history') {
-            fetchHistory();
-        }
-    }); // Note: This is a render-time check pattern, better use useEffect
-
-    // Correct useEffect Usage
-    const [hasFetchedHistory, setHasFetchedHistory] = useState(false);
-    if (currentView === 'history' && !hasFetchedHistory) {
-         fetchHistory();
-         setHasFetchedHistory(true);
-    }
-    if (currentView !== 'history' && hasFetchedHistory) {
-         setHasFetchedHistory(false);
-    }
-
-    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files || e.target.files.length === 0) return;
-        const file = e.target.files[0];
-        
-        setIsExtracting(true);
-        try {
-            const formData = new FormData();
-            formData.append("file", file);
-
-            const response = await fetch("/api/parse-resume", {
-                method: "POST",
-                body: formData,
-            });
-
-            const data = await response.json();
-            if (data.text) {
-                setBaseResume(data.text);
-            } else {
-                alert("Failed to extract text: " + (data.error || "Unknown error"));
-            }
-        } catch (error) {
-            console.error("Error parsing resume:", error);
-            alert("Error parsing resume");
-        } finally {
-            setIsExtracting(false);
-        }
-    };
-
-    const handleTailor = async () => {
-        setIsTailoring(true);
-        setCurrentEntryId(null); // Reset entry ID for new generation
-        try {
-            const response = await fetch("/api/tailor", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ baseResume, jobDescription }),
-            });
-            const data = await response.json();
-            if (data.tailoredResume) {
-                setTailoredResume(data.tailoredResume);
-                setCoverLetter(data.coverLetter || "");
-                if (data.entryId) setCurrentEntryId(data.entryId);
-            } else {
-                alert("Failed to tailor resume: " + (data.error || "Unknown error"));
-            }
-        } catch (error) {
-            console.error("Error tailoring resume:", error);
-            alert("Error tailoring resume");
-        } finally {
-            setIsTailoring(false);
-        }
-    };
-
-    const handleSend = async () => {
-        setIsSending(true);
-        try {
-            const doc = new jsPDF();
-            doc.setFont("times");
-
-            const resumeClean = cleanForPdf(tailoredResume);
-            const lines = resumeClean.split('\n');
-            let y = 20;
-            const margin = 20;
-
-            lines.forEach((line) => {
-                line = line.trim();
-                if (!line) return;
-
-                const isHeader = (
-                    line.length > 2 &&
-                    line === line.toUpperCase() &&
-                    /[A-Z]/.test(line) &&
-                    !line.startsWith("-") &&
-                    !line.includes("|") 
-                );
-
-                if (y > 280) {
-                    doc.addPage();
-                    y = 20;
-                }
-
-                if (isHeader) {
-                    doc.setFont("times", "bold");
-                    doc.setFontSize(12);
-                    doc.text(line, margin, y);
-                    doc.setLineWidth(0.5);
-                    doc.line(margin, y + 2, 190, y + 2);
-                    y += 8;
-                } else {
-                    doc.setFont("times", "normal");
-                    doc.setFontSize(11);
-                    const splitLines = doc.splitTextToSize(line, 170);
-                    doc.text(splitLines, margin, y);
-                    y += splitLines.length * 5; 
-                }
-            });
-
-            const pdfBase64 = doc.output("datauristring").split(",")[1];
-
-            const docCover = new jsPDF();
-            const coverClean = cleanForPdf(coverLetter);
-            const splitCover = docCover.splitTextToSize(coverClean, 180);
-            let yCover = 10;
-            docCover.text(splitCover, 10, yCover);
-            const coverLetterPdfBase64 = docCover.output("datauristring").split(",")[1];
-
-            const response = await fetch("/api/send", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    targetEmail,
-                    subject: "Job Application",
-                    emailBody: coverLetter,
-                    pdfBase64: pdfBase64,
-                    filename: "Tailored_Resume.pdf",
-                    coverLetterPdfBase64: coverLetterPdfBase64,
-                    coverLetterFilename: "Cover_Letter.pdf",
-                    entryId: currentEntryId // Link this send action to the history entry
-                }),
-            });
-            const data = await response.json();
-            if (data.success) {
-                alert("Email sent successfully!");
-            } else {
-                alert("Failed to send email: " + (data.error || "Unknown error"));
-            }
-        } catch (error) {
-            console.error("Error sending email:", error);
-            alert("Error sending email");
-        } finally {
-            setIsSending(false);
-        }
-    };
-
-    // UseEffect for History Refresh
-
+const Navbar = () => {
+    const [mobileOpen, setMobileOpen] = React.useState(false);
+    const navItems = ['Features', 'How it Works', 'Pricing'];
 
     return (
-        <ThemeProvider theme={dashboardTheme}>
-            <Box sx={{ display: 'flex', minHeight: '100vh', background: 'linear-gradient(to bottom right, #0f172a, #1e1b4b, #312e81)' }}>
-                <CssBaseline />
+        <AppBar position="fixed" elevation={0} sx={{ bgcolor: 'rgba(15, 23, 42, 0.8)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <Container maxWidth={false} sx={{ px: { xs: 3, md: 8 } }}>
+                <Toolbar disableGutters sx={{ height: 80, justifyContent: 'space-between' }}>
+                    {/* Logo */}
+                    <Link href="/" className="flex items-center gap-3 no-underline text-white group">
+                        <div className="bg-gradient-to-br from-emerald-500 to-blue-600 p-2.5 rounded-xl transition-transform group-hover:scale-105 shadow-lg shadow-emerald-500/20">
+                            <FileText className="text-white w-6 h-6" />
+                        </div>
+                        <Typography variant="h5" fontWeight="800" sx={{ letterSpacing: -0.5, display: { xs: 'none', sm: 'block' } }}>
+                            Resume<span className="text-emerald-400">AI</span>
+                        </Typography>
+                    </Link>
+
+                    {/* Desktop Utility Nav */}
+                    <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 1, alignItems: 'center' }}>
+                        {navItems.map((item) => (
+                            <Button key={item} color="inherit" sx={{ px: 2, py: 1, borderRadius: 2, color: 'text.secondary', fontWeight: 500, fontSize: '0.95rem', '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                                {item}
+                            </Button>
+                        ))}
+                        <Box sx={{ ml: 2, pl: 2, borderLeft: '1px solid rgba(255,255,255,0.1)' }}>
+                            <Link href="/dashboard" passHref>
+                                <Button 
+                                    variant="contained" 
+                                    color="primary"
+                                    sx={{ 
+                                        borderRadius: '50px', 
+                                        px: 3,
+                                        boxShadow: '0 0 15px rgba(52, 211, 153, 0.3)',
+                                        '&:hover': { boxShadow: '0 0 25px rgba(52, 211, 153, 0.5)' }
+                                    }}
+                                >
+                                    Launch App
+                                </Button>
+                            </Link>
+                        </Box>
+                    </Box>
+
+                    {/* Mobile Menu Icon */}
+                    <IconButton
+                        color="inherit"
+                        aria-label="open drawer"
+                        edge="start"
+                        onClick={() => setMobileOpen(!mobileOpen)}
+                        sx={{ display: { md: 'none' }, ml: 2 }}
+                    >
+                        {mobileOpen ? <X /> : <Menu />}
+                    </IconButton>
+                </Toolbar>
+            </Container>
+            
+            {/* Mobile Drawer */}
+            <Drawer
+                anchor="top"
+                open={mobileOpen}
+                onClose={() => setMobileOpen(false)}
+                sx={{ display: { md: 'none' }, '& .MuiDrawer-paper': { bgcolor: '#0f172a', mt: '80px', borderTop: '1px solid rgba(255,255,255,0.05)' } }}
+            >
+                <List sx={{ px: 3, pb: 4 }}>
+                    {navItems.map((item) => (
+                        <ListItem key={item} disablePadding>
+                            <ListItemButton sx={{ textAlign: 'center', borderRadius: 2, my: 0.5 }}>
+                                <ListItemText primary={item} primaryTypographyProps={{ fontWeight: 600 }} />
+                            </ListItemButton>
+                        </ListItem>
+                    ))}
+                    <ListItem disablePadding sx={{ mt: 2 }}>
+                        <Link href="/dashboard" passHref className="w-full">
+                            <Button fullWidth variant="contained" size="large" sx={{ borderRadius: 3, py: 1.5 }}>Launch App</Button>
+                        </Link>
+                    </ListItem>
+                </List>
+            </Drawer>
+        </AppBar>
+    );
+};
+
+const Hero = () => {
+    return (
+        <Box sx={{ 
+            minHeight: '100vh', 
+            display: 'flex', 
+            alignItems: 'center', 
+            position: 'relative', 
+            overflow: 'hidden',
+            pt: { xs: 16, md: 24 },
+            pb: { xs: 8, md: 10 },
+            background: 'radial-gradient(ellipse at 50% 50%, rgba(15, 23, 42, 1) 0%, rgba(2, 6, 23, 1) 100%)'
+        }}>
+            {/* Ambient Background Glows */}
+            <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
+
+            <Container maxWidth={false} sx={{ position: 'relative', px: { xs: 3, md: 8 } }}>
+                <Grid container spacing={{ xs: 6, md: 4, lg: 8 }} alignItems="center">
+                    {/* Left Content */}
+                    <Grid size={{ xs: 12, md: 6, lg: 5 }}>
+                        <motion.div 
+                            initial={{ opacity: 0, x: -20 }} 
+                            animate={{ opacity: 1, x: 0 }} 
+                            transition={{ duration: 0.6, ease: "easeOut" }}
+                        >
+                            <Chip 
+                                label="✨ v2.0 Now Live" 
+                                sx={{ 
+                                    mb: 3, 
+                                    bgcolor: 'rgba(52, 211, 153, 0.08)', 
+                                    color: '#34d399', 
+                                    fontWeight: 700, 
+                                    border: '1px solid rgba(52, 211, 153, 0.2)',
+                                    px: 1
+                                }} 
+                            />
+                            <Typography 
+                                variant="h1" 
+                                sx={{ 
+                                    fontSize: { xs: '2.5rem', sm: '3.5rem', md: '4rem', lg: '5rem' },
+                                    lineHeight: 1.1,
+                                    fontWeight: 800,
+                                    mb: 3,
+                                    background: 'linear-gradient(to bottom right, #ffffff 30%, #94a3b8 100%)',
+                                    backgroundClip: 'text',
+                                    textFillColor: 'transparent',
+                                    letterSpacing: '-0.02em'
+                                }}
+                            >
+                                Craft Your Perfect <br />
+                                <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+                                    Resume in Seconds
+                                </span>
+                            </Typography>
+                            
+                            <Typography 
+                                variant="h5" 
+                                color="text.secondary" 
+                                sx={{ 
+                                    mb: 5, 
+                                    maxWidth: '600px', 
+                                    lineHeight: 1.6,
+                                    fontSize: { xs: '1rem', md: '1.25rem' },
+                                    fontWeight: 400
+                                }}
+                            >
+                                Stop wrestling with formatting. Our AI analyzes job descriptions and tailors your resume keywords instantly to beat the ATS and get hired faster.
+                            </Typography>
+                            
+                            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 6 }}>
+                                <Link href="/dashboard" passHref className="w-full sm:w-auto">
+                                    <Button 
+                                        variant="contained" 
+                                        size="large" 
+                                        endIcon={<ArrowRight />} 
+                                        fullWidth
+                                        sx={{ 
+                                            px: 5, 
+                                            py: 2, 
+                                            fontSize: '1.1rem',
+                                            borderRadius: '50px',
+                                            background: 'linear-gradient(135deg, #34d399 0%, #059669 100%)',
+                                            boxShadow: '0 0 20px rgba(52, 211, 153, 0.4)',
+                                            '&:hover': {
+                                                boxShadow: '0 0 30px rgba(52, 211, 153, 0.6)',
+                                                transform: 'translateY(-2px)'
+                                            },
+                                            transition: 'all 0.3s ease'
+                                        }}
+                                    >
+                                        Build My Resume
+                                    </Button>
+                                </Link>
+                                <Button 
+                                    variant="outlined" 
+                                    size="large" 
+                                    sx={{ 
+                                        px: 5, 
+                                        py: 2, 
+                                        fontSize: '1.1rem', 
+                                        borderRadius: '50px',
+                                        borderColor: 'rgba(255,255,255,0.1)', 
+                                        color: 'white', 
+                                        borderWidth: '1px',
+                                        '&:hover': { 
+                                            borderColor: 'white', 
+                                            bgcolor: 'rgba(255,255,255,0.05)',
+                                            borderWidth: '1px'
+                                        } 
+                                    }}
+                                >
+                                    View Samples
+                                </Button>
+                            </Stack>
+
+                            <Stack direction="row" spacing={4} alignItems="center" sx={{ opacity: 0.8 }}>
+                                {[
+                                    { text: "ATS Friendly", icon: <CheckCircle2 size={18} className="text-emerald-400" /> },
+                                    { text: "GPT-4 Powered", icon: <CheckCircle2 size={18} className="text-emerald-400" /> },
+                                    { text: "Privacy First", icon: <CheckCircle2 size={18} className="text-emerald-400" /> }
+                                ].map((item, i) => (
+                                    <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                        {item.icon}
+                                        <Typography variant="body2" color="white" fontWeight={500}>
+                                            {item.text}
+                                        </Typography>
+                                    </Box>
+                                ))}
+                            </Stack>
+                        </motion.div>
+                    </Grid>
+
+                    {/* Right Visual */}
+                    <Grid size={{ xs: 12, md: 6, lg: 7 }} sx={{ display: { xs: 'none', md: 'flex' }, justifyContent: 'flex-end' }}>
+                        <motion.div 
+                            initial={{ opacity: 0, y: 40, rotateX: 10 }} 
+                            animate={{ opacity: 1, y: 0, rotateX: 0 }} 
+                            transition={{ delay: 0.2, duration: 0.8 }}
+                            style={{ perspective: 1000 }}
+                        >
+                            <Box sx={{ position: 'relative' }}>
+                                {/* Floating Elements */}
+                                <motion.div 
+                                    animate={{ y: [0, -10, 0] }} 
+                                    transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+                                    className="absolute -top-12 -right-12 z-20"
+                                >
+                                    <Paper sx={{ p: 2, bgcolor: 'rgba(30, 41, 59, 0.8)', backdropFilter: 'blur(10px)', border: '1px solid rgba(52, 211, 153, 0.3)', borderRadius: 4 }}>
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-emerald-500/20 rounded-full text-emerald-400">
+                                                <Bot size={24} />
+                                            </div>
+                                            <div>
+                                                <Typography variant="subtitle2" fontWeight="bold">AI Analysis</Typography>
+                                                <Typography variant="caption" className="text-emerald-400">Optimized</Typography>
+                                            </div>
+                                        </div>
+                                    </Paper>
+                                </motion.div>
+
+                                <motion.div 
+                                    animate={{ y: [0, 15, 0] }} 
+                                    transition={{ repeat: Infinity, duration: 5, ease: "easeInOut", delay: 1 }}
+                                    className="absolute -bottom-8 -left-8 z-20"
+                                >
+                                    <Paper sx={{ p: 2, bgcolor: 'rgba(30, 41, 59, 0.8)', backdropFilter: 'blur(10px)', border: '1px solid rgba(96, 165, 250, 0.3)', borderRadius: 4 }}>
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-blue-500/20 rounded-full text-blue-400">
+                                                <CheckCircle2 size={24} />
+                                            </div>
+                                            <div>
+                                                <Typography variant="subtitle2" fontWeight="bold">ATS Score</Typography>
+                                                <Typography variant="caption" className="text-blue-400">98/100 Excellent</Typography>
+                                            </div>
+                                        </div>
+                                    </Paper>
+                                </motion.div>
+
+                                {/* Main Resume Card Visual */}
+                                <Paper 
+                                    elevation={24} 
+                                    sx={{ 
+                                        width: { md: 450, lg: 550 },
+                                        height: { md: 600, lg: 700 },
+                                        bgcolor: 'rgba(255, 255, 255, 0.03)', 
+                                        backdropFilter: 'blur(20px)', 
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: 6,
+                                        overflow: 'hidden',
+                                        position: 'relative',
+                                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                                    }}
+                                >
+                                    {/* Mock Browser Header */}
+                                    <div className="h-10 border-b border-white/5 bg-white/5 flex items-center px-4 gap-2">
+                                        <div className="w-3 h-3 rounded-full bg-red-500/50" />
+                                        <div className="w-3 h-3 rounded-full bg-yellow-500/50" />
+                                        <div className="w-3 h-3 rounded-full bg-green-500/50" />
+                                    </div>
+
+                                    {/* Mock Resume Content */}
+                                    <div className="p-8 space-y-6 opacity-60">
+                                            {/* Header */}
+                                            <div className="flex gap-4 items-center mb-8">
+                                                <div className="w-16 h-16 rounded-full bg-white/10" />
+                                                <div className="space-y-2 flex-1">
+                                                    <div className="h-4 w-1/2 bg-white/20 rounded" />
+                                                    <div className="h-3 w-1/3 bg-white/10 rounded" />
+                                                </div>
+                                            </div>
+
+                                            {/* Lines */}
+                                            <div className="space-y-3">
+                                                <div className="h-4 w-1/4 bg-emerald-500/20 rounded mb-4" />
+                                                {[1,2,3].map(i => (
+                                                    <div key={i} className="h-2 w-full bg-white/5 rounded" />
+                                                ))}
+                                                <div className="h-2 w-2/3 bg-white/5 rounded" />
+                                            </div>
+
+                                            <div className="space-y-3 pt-4">
+                                                <div className="h-4 w-1/4 bg-blue-500/20 rounded mb-4" />
+                                                {[1,2,3,4].map(i => (
+                                                    <div key={i} className="h-2 w-full bg-white/5 rounded" />
+                                                ))}
+                                            </div>
+                                            
+                                            {/* Glowing Effect */}
+                                            <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/10 via-transparent to-blue-500/10" />
+                                    </div>
+                                    
+                                    {/* Scan Line Animation */}
+                                    <motion.div 
+                                        className="absolute top-0 left-0 w-full h-1 bg-emerald-400/50 shadow-[0_0_20px_rgba(52,211,153,0.5)] z-10"
+                                        animate={{ top: ['0%', '100%', '0%'] }}
+                                        transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
+                                    />
+                                </Paper>
+                            </Box>
+                        </motion.div>
+                    </Grid>
+                </Grid>
+            </Container>
+        </Box>
+    );
+};
+
+const Features = () => {
+    const features = [
+        {
+            icon: <Bot className="w-6 h-6 text-white" />,
+            title: "AI-Powered Tailoring",
+            desc: "Instantly rewrite your resume to match specific job descriptions using advanced LLMs."
+        },
+        {
+            icon: <Layout className="w-6 h-6 text-white" />,
+            title: "Professional Templates",
+            desc: "Choose from battle-tested, recruiter-approved templates that stand out."
+        },
+        {
+            icon: <Wand2 className="w-6 h-6 text-white" />,
+            title: "Smart Optimization",
+            desc: "Automatic keyword optimization ensures you pass Applicant Tracking Systems (ATS)."
+        },
+        {
+            icon: <ShieldCheck className="w-6 h-6 text-white" />,
+            title: "Data Privacy",
+            desc: "Your data stays yours. We don't share your personal information with third parties."
+        },
+        {
+            icon: <FileText className="w-6 h-6 text-white" />,
+            title: "Cover Letter Gen",
+            desc: "Generate personalized cover letters that perfectly complement your tailored resume."
+        },
+        {
+            icon: <Zap className="w-6 h-6 text-white" />,
+            title: "Real-time Previews",
+            desc: "See your changes instantly with our high-performance, live-rendering engine."
+        }
+    ];
+
+    return (
+        <Box sx={{ py: 12, bgcolor: '#0f172a' }}>
+            <Container maxWidth={false} sx={{ px: { xs: 3, md: 8 } }}>
+                <Box mb={8}>
+                    <Typography variant="h6" color="primary" gutterBottom textTransform="uppercase" fontWeight="bold" letterSpacing={1}>
+                        Why Choose Us
+                    </Typography>
+                    <Typography variant="h3" fontWeight="bold" sx={{ color: 'white' }}>
+                        Supercharge Your Job Search
+                    </Typography>
+                </Box>
                 
-                {/* 1. TOP APP BAR */}
-                <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-                    <Toolbar sx={{ justifyContent: 'space-between' }}>
-                        <div className="flex items-center gap-3">
-                            <div className="bg-gradient-to-r from-emerald-400 to-blue-500 p-2 rounded-lg">
-                                <FileText className="text-white w-6 h-6" />
-                            </div>
-                            <Typography variant="h6" noWrap component="div" fontWeight="700" sx={{ letterSpacing: 0.5 }}>
+                <Grid container spacing={4}>
+                    {features.map((feature, i) => (
+                        <Grid size={{ xs: 12, md: 6, lg: 4 }} key={i}>
+                            <Paper 
+                                sx={{ 
+                                    p: 4, 
+                                    height: '100%', 
+                                    bgcolor: 'rgba(30, 41, 59, 0.4)', 
+                                    border: '1px solid rgba(255,255,255,0.05)',
+                                    borderRadius: 3,
+                                    transition: 'transform 0.2s',
+                                    '&:hover': {
+                                        transform: 'translateY(-8px)',
+                                        bgcolor: 'rgba(30, 41, 59, 0.8)',
+                                        borderColor: 'rgba(52, 211, 153, 0.3)'
+                                    }
+                                }}
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/20">
+                                    {feature.icon}
+                                </div>
+                                <Typography variant="h6" fontWeight="bold" gutterBottom color="white">
+                                    {feature.title}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                                    {feature.desc}
+                                </Typography>
+                            </Paper>
+                        </Grid>
+                    ))}
+                </Grid>
+            </Container>
+        </Box>
+    );
+};
+
+const Footer = () => {
+    return (
+        <Box sx={{ py: 8, bgcolor: '#020617', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+            <Container maxWidth="lg">
+                <Grid container spacing={4} justifyContent="space-between">
+                    <Grid size={{ xs: 12, md: 4 }}>
+                        <div className="flex items-center gap-2 mb-4">
+                            <FileText className="text-emerald-400 w-6 h-6" />
+                            <Typography variant="h6" fontWeight="800" color="white">
                                 Resume<span className="text-emerald-400">AI</span>
                             </Typography>
                         </div>
-                        
-                        <div className="flex items-center gap-4">
-                           <Box sx={{ position: 'relative', borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.05)', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' }, mr: 2, display: { xs: 'none', sm: 'block' } }}>
-                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                                    <Search size={18} className="text-gray-400" />
-                                </div>
-                                <InputBase
-                                    placeholder="Search..."
-                                    sx={{ color: 'inherit', width: '200px', '& .MuiInputBase-input': { p: 1, pl: 5 } }}
-                                />
-                           </Box>
-                           <IconButton color="inherit">
-                               <Badge badgeContent={4} color="secondary">
-                                   <Bell size={20} />
-                               </Badge>
-                           </IconButton>
-                           <Avatar sx={{ bgcolor: 'secondary.main' }}>KC</Avatar>
-                        </div>
-                    </Toolbar>
-                </AppBar>
-
-                {/* 2. SIDEBAR NAVIGATION */}
-                <Drawer
-                    variant="permanent"
-                    sx={{
-                        width: DRAWER_WIDTH,
-                        flexShrink: 0,
-                        [`& .MuiDrawer-paper`]: { width: DRAWER_WIDTH, boxSizing: 'border-box' },
-                    }}
-                >
-                    <Toolbar /> {/* Spacer for AppBar */}
-                    <Box sx={{ overflow: 'auto', mt: 2 }}>
-                        <List>
-                            <ListItem disablePadding>
-                                <ListItemButton selected={currentView === 'builder'} onClick={() => setCurrentView('builder')}>
-                                    <ListItemIcon><LayoutDashboard className={currentView === 'builder' ? "text-emerald-400" : "text-slate-400"}/></ListItemIcon>
-                                    <ListItemText primary="Builder" primaryTypographyProps={{ fontWeight: 600, color: currentView === 'builder' ? 'white' : 'gray' }} />
-                                </ListItemButton>
-                            </ListItem>
-                            <ListItem disablePadding>
-                                <ListItemButton selected={currentView === 'history'} onClick={() => { setCurrentView('history'); fetchHistory(); }}>
-                                    <ListItemIcon><History className={currentView === 'history' ? "text-emerald-400" : "text-slate-400"}/></ListItemIcon>
-                                    <ListItemText primary="History" primaryTypographyProps={{ fontWeight: 600, color: currentView === 'history' ? 'white' : 'gray' }} />
-                                </ListItemButton>
-                            </ListItem>
-                            <ListItem disablePadding>
-                                <ListItemButton>
-                                    <ListItemIcon><FileText className="text-slate-400"/></ListItemIcon>
-                                    <ListItemText primary="Templates" className="text-slate-400" />
-                                </ListItemButton>
-                            </ListItem>
-                        </List>
-                        <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.05)' }} />
-                        <List>
-                            <ListItem disablePadding>
-                                <ListItemButton>
-                                    <ListItemIcon><Settings className="text-slate-400"/></ListItemIcon>
-                                    <ListItemText primary="Settings" className="text-slate-400" />
-                                </ListItemButton>
-                            </ListItem>
-                            <ListItem disablePadding>
-                                <ListItemButton>
-                                    <ListItemIcon><LogOut className="text-slate-400"/></ListItemIcon>
-                                    <ListItemText primary="Logout" className="text-slate-400" />
-                                </ListItemButton>
-                            </ListItem>
-                        </List>
-                    </Box>
-                </Drawer>
-
-                {/* 3. MAIN DASHBOARD CONTENT */}
-                <Box component="main" sx={{ flexGrow: 1, p: 3, width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` } }}>
-                    <Toolbar /> {/* Spacer for AppBar */}
-                    
-                    {currentView === 'builder' ? (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            <Typography variant="h4" gutterBottom fontWeight="700" sx={{ mb: 4 }} className="text-white">
-                                Create New Resume
-                            </Typography>
-                            <Grid container spacing={4} alignItems="stretch">
-                                {/* ... Builder Inputs ... */}
-                                <Grid size={{ xs: 12, xl: 5 }}>
-                                    <Card sx={{ height: '100%' }}>
-                                        <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 3, height: '100%' }}>
-                                            <div className="flex items-center gap-3 pb-2 border-b border-gray-700">
-                                                <Wand2 className="text-emerald-400 w-5 h-5" />
-                                                <Typography variant="h6" fontWeight="600">Details & Context</Typography>
-                                            </div>
-
-                                            <Button
-                                                component="label"
-                                                variant="outlined"
-                                                fullWidth
-                                                startIcon={isExtracting ? <CircularProgress size={20} /> : <Upload />}
-                                                disabled={isExtracting}
-                                                sx={{ height: 64, borderStyle: 'dashed', borderWidth: 2, borderColor: 'text.secondary' }}
-                                            >
-                                                {isExtracting ? "Parsing PDF..." : "Upload Base Resume (PDF)"}
-                                                <input type="file" hidden accept=".pdf" onChange={handleFileSelect} />
-                                            </Button>
-                                            
-                                            <div className="relative text-center">
-                                                <Typography variant="caption" className="text-slate-500 uppercase px-2 bg-transparent relative z-10">
-                                                    Or paste text
-                                                </Typography>
-                                            </div>
-
-                                            <TextField
-                                                label="Job Description"
-                                                placeholder="Paste the job description here..."
-                                                multiline
-                                                minRows={4}
-                                                fullWidth
-                                                variant="filled"
-                                                value={jobDescription}
-                                                onChange={(e) => setJobDescription(e.target.value)}
-                                                sx={{ '& .MuiFilledInput-root': { bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2 } }}
-                                            />
-
-                                            <TextField
-                                                label="Base Resume Content"
-                                                placeholder="Extracted resume text..."
-                                                multiline
-                                                minRows={6}
-                                                fullWidth
-                                                variant="filled"
-                                                value={baseResume}
-                                                onChange={(e) => setBaseResume(e.target.value)}
-                                                sx={{ '& .MuiFilledInput-root': { bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, fontFamily: 'monospace', fontSize: '13px' } }}
-                                            />
-                                            
-                                            <div className="mt-auto pt-4">
-                                                <Button
-                                                    variant="contained"
-                                                    fullWidth
-                                                    size="large"
-                                                    onClick={handleTailor}
-                                                    disabled={isTailoring || !jobDescription || !baseResume}
-                                                    startIcon={isTailoring ? <CircularProgress size={20} color="inherit" /> : <Wand2 />}
-                                                    sx={{ 
-                                                        bgcolor: 'primary.main', 
-                                                        color: '#000',
-                                                        '&:hover': { bgcolor: 'primary.dark' },
-                                                        height: 56
-                                                    }}
-                                                >
-                                                    {isTailoring ? "Generating Tailored Resume..." : "Generate Tailored Resume"}
-                                                </Button>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
-
-                                {/* ... Builder Preview ... */}
-                                <Grid size={{ xs: 12, xl: 7 }}>
-                                     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                        <CardContent sx={{ p: 4, flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                            <div className="flex justify-between items-center pb-2 border-b border-gray-700">
-                                                <div className="flex items-center gap-3">
-                                                    <FileText className="text-blue-400 w-5 h-5" />
-                                                    <Typography variant="h6" fontWeight="600">Tailored Preview</Typography>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <Button 
-                                                        size="small" 
-                                                        startIcon={editMode ? <Eye size={16}/> : <Edit size={16}/>}
-                                                        onClick={() => setEditMode(!editMode)}
-                                                        sx={{ color: 'text.secondary' }}
-                                                    >
-                                                        {editMode ? "Preview Mode" : "Edit Mode"}
-                                                    </Button>
-                                                </div>
-                                            </div>
-
-                                            <Box sx={{ flex: 1, minHeight: 500, bgcolor: 'rgba(0,0,0,0.3)', borderRadius: 4, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                {editMode ? (
-                                                    <TextField
-                                                        multiline
-                                                        fullWidth
-                                                        value={tailoredResume}
-                                                        onChange={(e) => setTailoredResume(e.target.value)}
-                                                        sx={{ 
-                                                            height: '100%',
-                                                            '& .MuiInputBase-root': { height: '100%', alignItems: 'flex-start', p: 3, fontFamily: 'monospace' } 
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <div className="h-full overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-700">
-                                                        <pre className="whitespace-pre-wrap font-serif text-sm leading-7 text-gray-200">
-                                                            {tailoredResume || "Your tailored resume will generated here..."}
-                                                        </pre>
-                                                    </div>
-                                                )}
-                                            </Box>
-
-                                            <Grid container spacing={2}>
-                                                <Grid size={{ xs: 12, md: 8 }}>
-                                                    <TextField
-                                                        label="Recruiter Email"
-                                                        size="small"
-                                                        fullWidth
-                                                        value={targetEmail}
-                                                        onChange={(e) => setTargetEmail(e.target.value)}
-                                                        placeholder="hiring@company.com"
-                                                        InputProps={{ startAdornment: <Mail size={16} className="mr-2 text-gray-400"/> }}
-                                                    />
-                                                </Grid>
-                                                <Grid size={{ xs: 12, md: 4 }}>
-                                                    <Button
-                                                        variant="contained"
-                                                        color="secondary"
-                                                        fullWidth
-                                                        onClick={handleSend}
-                                                        disabled={isSending || !tailoredResume || !targetEmail}
-                                                        startIcon={isSending ? <CircularProgress size={16} color="inherit" /> : <Mail />}
-                                                        sx={{ height: '100%' }}
-                                                    >
-                                                        Send PDF
-                                                    </Button>
-                                                </Grid>
-                                            </Grid>
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
+                        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 300 }}>
+                            Empowering job seekers with AI-driven tools to land their dream jobs faster and easier.
+                        </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 8 }}>
+                        <Grid container spacing={4}>
+                            <Grid size={{ xs: 6, md: 4 }}>
+                                <Typography variant="subtitle2" fontWeight="bold" color="white" gutterBottom>Product</Typography>
+                                <Stack spacing={1}>
+                                    <Link href="#" className="text-slate-400 hover:text-emerald-400 text-sm no-underline">Features</Link>
+                                    <Link href="#" className="text-slate-400 hover:text-emerald-400 text-sm no-underline">Pricing</Link>
+                                    <Link href="#" className="text-slate-400 hover:text-emerald-400 text-sm no-underline">Templates</Link>
+                                </Stack>
                             </Grid>
-                        </motion.div>
-                    ) : (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                            <Typography variant="h4" gutterBottom fontWeight="700" sx={{ mb: 4 }} className="text-white">
-                                Activity History
-                            </Typography>
-                            
-                            <Grid container spacing={4}>
-                                {/* KPI Cards */}
-                                <Grid size={{ xs: 12, md: 4 }}>
-                                    <Card sx={{ bgcolor: 'rgba(52, 211, 153, 0.1)' }}>
-                                        <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                            <div className="p-3 bg-emerald-500/20 rounded-lg">
-                                                <TrendingUp className="text-emerald-400 w-8 h-8" />
-                                            </div>
-                                            <div>
-                                                <Typography variant="overline" color="textSecondary">Total Generated</Typography>
-                                                <Typography variant="h4" fontWeight="bold">{historyStats.totalGenerated}</Typography>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
-                                <Grid size={{ xs: 12, md: 4 }}>
-                                    <Card sx={{ bgcolor: 'rgba(96, 165, 250, 0.1)' }}>
-                                        <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                            <div className="p-3 bg-blue-500/20 rounded-lg">
-                                                <CheckCircle2 className="text-blue-400 w-8 h-8" />
-                                            </div>
-                                            <div>
-                                                <Typography variant="overline" color="textSecondary">Applications Sent</Typography>
-                                                <Typography variant="h4" fontWeight="bold">{historyStats.totalSent}</Typography>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
-                                <Grid size={{ xs: 12, md: 4 }}>
-                                    <Card sx={{ bgcolor: 'rgba(248, 113, 113, 0.1)' }}>
-                                        <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                            <div className="p-3 bg-red-500/20 rounded-lg">
-                                                <Calendar className="text-red-400 w-8 h-8" />
-                                            </div>
-                                            <div>
-                                                <Typography variant="overline" color="textSecondary">Active Streak</Typography>
-                                                <Typography variant="h4" fontWeight="bold">{historyStats.streak} Days</Typography>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
-
-                                {/* Activity Chart - GitHub Style Contribution */}
-                                <Grid size={{ xs: 12, lg: 8 }}>
-                                    <Card sx={{ height: 400 }}>
-                                        <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                                            <Typography variant="h6" fontWeight="600" gutterBottom>Generation Activity</Typography>
-                                            <div className="flex-1 mt-4">
-                                                {loadingHistory ? (
-                                                    <div className="flex h-full items-center justify-center">
-                                                        <CircularProgress />
-                                                    </div>
-                                                ) : (
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                                            <defs>
-                                                                <linearGradient id="colorResumes" x1="0" y1="0" x2="0" y2="1">
-                                                                    <stop offset="5%" stopColor="#34d399" stopOpacity={0.8}/>
-                                                                    <stop offset="95%" stopColor="#34d399" stopOpacity={0}/>
-                                                                </linearGradient>
-                                                            </defs>
-                                                            <XAxis dataKey="name" stroke="#94a3b8" />
-                                                            <YAxis stroke="#94a3b8" />
-                                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                                            <Tooltip 
-                                                                contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
-                                                                itemStyle={{ color: '#fff' }}
-                                                            />
-                                                            <Area type="monotone" dataKey="resumes" stroke="#34d399" fillOpacity={1} fill="url(#colorResumes)" />
-                                                        </AreaChart>
-                                                    </ResponsiveContainer>
-                                                )}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
-
-                                {/* Recent Activity List */}
-                                <Grid size={{ xs: 12, lg: 4 }}>
-                                    <Card sx={{ height: 400, overflow: 'auto' }}>
-                                        <CardContent>
-                                            <Typography variant="h6" fontWeight="600" gutterBottom>Recent Applications</Typography>
-                                            {loadingHistory ? (
-                                                <div className="flex justify-center p-4"><CircularProgress size={24}/></div>
-                                            ) : (
-                                                <List>
-                                                    {historyList.map((item) => (
-                                                        <ListItem key={item.id} disablePadding sx={{ mb: 2 }}>
-                                                            <ListItemButton sx={{ borderRadius: 2, bgcolor: 'rgba(255,255,255,0.03)', '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }}>
-                                                                <ListItemIcon>
-                                                                    <div className="p-2 bg-slate-800 rounded-full">
-                                                                        <FileText size={18} className="text-emerald-400" />
-                                                                    </div>
-                                                                </ListItemIcon>
-                                                                <ListItemText 
-                                                                    primary={item.title} 
-                                                                    secondary={`${item.company} • ${item.date}`} 
-                                                                    primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
-                                                                    secondaryTypographyProps={{ variant: 'caption', color: 'text.secondary' }}
-                                                                />
-                                                                <Chip 
-                                                                    label={item.status} 
-                                                                    size="small" 
-                                                                    color={item.status === 'Sent' ? "success" : "default"} 
-                                                                    variant={item.status === 'Sent' ? "filled" : "outlined"}
-                                                                />
-                                                            </ListItemButton>
-                                                        </ListItem>
-                                                    ))}
-                                                    {historyList.length === 0 && <Typography variant="caption" sx={{textAlign:'center', display:'block', mt:2}}>No history yet.</Typography>}
-                                                </List>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
+                            <Grid size={{ xs: 6, md: 4 }}>
+                                <Typography variant="subtitle2" fontWeight="bold" color="white" gutterBottom>Company</Typography>
+                                <Stack spacing={1}>
+                                    <Link href="#" className="text-slate-400 hover:text-emerald-400 text-sm no-underline">About</Link>
+                                    <Link href="#" className="text-slate-400 hover:text-emerald-400 text-sm no-underline">Blog</Link>
+                                    <Link href="#" className="text-slate-400 hover:text-emerald-400 text-sm no-underline">Careers</Link>
+                                </Stack>
                             </Grid>
-                        </motion.div>
-                    )}
-                </Box>
+                            <Grid size={{ xs: 6, md: 4 }}>
+                                <Typography variant="subtitle2" fontWeight="bold" color="white" gutterBottom>Legal</Typography>
+                                <Stack spacing={1}>
+                                    <Link href="#" className="text-slate-400 hover:text-emerald-400 text-sm no-underline">Privacy</Link>
+                                    <Link href="#" className="text-slate-400 hover:text-emerald-400 text-sm no-underline">Terms</Link>
+                                </Stack>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Grid>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 8, textAlign: 'center' }}>
+                    © {new Date().getFullYear()} ResumeAI. All rights reserved.
+                </Typography>
+            </Container>
+        </Box>
+    );
+};
+
+export default function LandingPage() {
+    return (
+        <ThemeProvider theme={landingTheme}>
+            <CssBaseline />
+            <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+                <Navbar />
+                <Hero />
+                <Features />
+                <Footer />
             </Box>
         </ThemeProvider>
     );
